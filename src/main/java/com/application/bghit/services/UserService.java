@@ -138,6 +138,7 @@ public class UserService {
         User newUser = new User();
         newUser.setEmail(signUpDto.email());
         newUser.setName(signUpDto.name());
+        newUser.setLastName(signUpDto.lastName());
         newUser.setPassword(passwordEncoder.encode(CharBuffer.wrap(passwordAsString)));
 
         newUser = userRepository.save(newUser);
@@ -159,6 +160,7 @@ public class UserService {
         User newUser = new User();
         newUser.setEmail(signUpDto.email());
         newUser.setName(signUpDto.name());
+        newUser.setLastName(signUpDto.lastName());
         newUser.setPassword(passwordEncoder.encode(CharBuffer.wrap(passwordAsString)));
         newUser.setPhotos(collections);
         newUser.setSearchFavoris(searchFavoris);
