@@ -45,4 +45,15 @@ public class ChatMessage  implements Serializable {
     @Enumerated(EnumType.STRING) // Store enum values as String
     @Column(nullable = false)
     private MessageStatus status = MessageStatus.SENT;
+
+    public enum MessageType {
+        TEXT, ICON, PHOTO, URL // Ajoutez d'autres types selon vos besoins
+    }
+    @Enumerated(EnumType.STRING) // Store enum values as String
+    @Column(nullable = false)
+    private MessageType type = MessageType.TEXT;
+
+
+    @Builder.Default
+    private String url  = "";
 }
