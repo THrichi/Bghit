@@ -2,6 +2,7 @@ package com.application.bghit.specification;
 
 
 import com.application.bghit.entities.Demande;
+import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 import java.util.ArrayList;
@@ -18,7 +19,8 @@ public class DemandeSpecification {
                                                           boolean gratuit,
                                                           Double prixMin,
                                                           Double prixMax,
-                                                          boolean estPayant
+                                                          boolean estPayant,
+                                                          List<Demande.DemandeStatus> etats
                                                           ) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -64,8 +66,11 @@ public class DemandeSpecification {
             if (categorie != null && !categorie.isEmpty()) {
                 predicates.add(cb.equal(cb.lower(root.get("categorie")), categorie.toLowerCase()));
             }
-            if (etat != null && !etat.isEmpty()) {
-                predicates.add(cb.equal(cb.lower(root.get("etat")), etat.toLowerCase()));
+            if (etats != null && !etats.isEmpty()) {
+                // Convertir la liste des états en prédicats et les ajouter
+                CriteriaBuilder.In<Object> inClause = cb.in(root.get("etat"));
+                etats.forEach(inClause::value);
+                predicates.add(inClause);
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));

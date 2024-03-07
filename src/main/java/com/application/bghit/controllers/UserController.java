@@ -2,6 +2,7 @@ package com.application.bghit.controllers;
 
 import com.application.bghit.config.UserAuthProvider;
 import com.application.bghit.dtos.*;
+import com.application.bghit.entities.Demande;
 import com.application.bghit.entities.Rating;
 import com.application.bghit.entities.User;
 import com.application.bghit.entities.Verified;
@@ -12,6 +13,7 @@ import com.application.bghit.services.TwilioSmsSenderService;
 import com.application.bghit.services.UserService;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -53,17 +55,32 @@ public class UserController {
         return ResponseEntity.ok(userDto);
     }
     @PostMapping("/user/addRating")
-    public ResponseEntity<Boolean> addRating(
+    public ResponseEntity<?> addRating(
             @RequestParam Long userId,
             @RequestBody Rating rating) throws AppException {
-        User user = userService.findById(userId)
-                .orElseThrow(() -> new AppException("Unknown User", HttpStatus.NOT_FOUND));
-        ratingRepository.save(rating);
-        user.getRatings().add(rating);
-        userService.saveUser(user);
-        return ResponseEntity.ok(true);
+        try {
+            User user = userService.findById(userId)
+                    .orElseThrow(() -> new AppException("Unknown User", HttpStatus.NOT_FOUND));
+            if(ratingRepository.existsByRaterIdAndUserId(rating.getRaterId(),rating.getUserId())){
+                return ResponseEntity.status(HttpStatus.CONFLICT).body("La note pour cet utilisateur ne peut pas être dupliquée.");
+            }
+            ratingRepository.save(rating);
+            user.getRatings().add(rating);
+            userService.saveUser(user);
+            return ResponseEntity.ok(true);
+        } catch (DataIntegrityViolationException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("La note pour cet utilisateur ne peut pas être dupliquée.");
+        } catch (Exception e) {
+            // Gérer d'autres exceptions non spécifiques
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Une erreur interne est survenue.");
+        }
     }
 
+    @GetMapping("/user/checkRate/{raterId}/{userId}")
+    public ResponseEntity<Boolean> checkUserHasRated(@PathVariable Long raterId, @PathVariable Long userId) {
+        boolean hasRated = ratingRepository.existsByRaterIdAndUserId(raterId, userId);
+        return ResponseEntity.ok(hasRated);
+    }
     @GetMapping("/user/updateAboutMe")
     public ResponseEntity<Boolean> updateAboutMe(
             @RequestParam String aboutMe) throws AppException {
@@ -207,6 +224,14 @@ public class UserController {
         userService.saveUser(user);
         return ResponseEntity.ok(true);
     }
-
+    @PatchMapping("/user/addAffaireConclus")
+    public ResponseEntity<?> addAffaireConclus(@RequestParam("userId") Long userId) throws AppException {
+        Optional<User> optionalUser = userService.findById(userId);
+        if(optionalUser.isEmpty())throw new AppException("Unknown User", HttpStatus.NOT_FOUND);
+        User user =  optionalUser.get();
+        user.setAffairesConcluses(user.getAffairesConcluses()+1);
+        userService.saveUser(user);
+        return ResponseEntity.ok(true);
+    }
 
 }

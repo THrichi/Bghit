@@ -5,6 +5,7 @@ import com.application.bghit.dtos.DemandeListDto;
 import com.application.bghit.entities.Demande;
 import com.application.bghit.entities.User;
 import com.application.bghit.exceptions.AppException;
+import com.application.bghit.services.ChatService;
 import com.application.bghit.services.DemandeService;
 import com.application.bghit.services.UserService;
 import com.application.bghit.specification.DemandeSpecification;
@@ -13,12 +14,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -28,6 +31,7 @@ import java.util.stream.Collectors;
 public class DemandController {
 
     private final  DemandeService demandeService;
+    private final ChatService chatService;
 
     @PostMapping("/demande/create")
     public ResponseEntity<Demande> createDemande(@ModelAttribute DemandeCreateDto demandeDto) throws IOException, AppException {
@@ -74,8 +78,20 @@ public class DemandController {
                                                                    @RequestParam(required = false) Double prixMax,
                                                                    @RequestParam(required = false) boolean gratuit,
                                                                    @RequestParam(required = false) boolean estPayant,
+                                                                   @RequestParam(required = false) String etats,
                                                                    Pageable pageable) {
-        Specification<Demande> specification = DemandeSpecification.withDynamicQuery(titre, categorie, etat, lat, lng, distance,gratuit,prixMin,prixMax,estPayant);
+
+        List<Demande.DemandeStatus> etatList = null;
+        if (etats != null && !etats.isEmpty()) {
+            etatList = Arrays.stream(etats.split(","))
+                    .map(String::trim)
+                    .map(String::toUpperCase)
+                    .map(Demande.DemandeStatus::valueOf)
+                    .toList();
+        }
+
+
+        Specification<Demande> specification = DemandeSpecification.withDynamicQuery(titre, categorie, etat, lat, lng, distance,gratuit,prixMin,prixMax,estPayant,etatList);
         return ResponseEntity.ok(demandeService.findAll(specification, pageable));
     }
     @DeleteMapping("/demande/remove")
@@ -84,4 +100,18 @@ public class DemandController {
         return ResponseEntity.ok().build();
     }
 
+    @PatchMapping("/demande/updateDemande/{demandeId}/status")
+    public ResponseEntity<DemandeListDto> changeDemandeStatus(@PathVariable Long demandeId,
+                                                              @RequestParam("status") Demande.DemandeStatus status,
+                                                              @RequestParam(value = "reservedToIdUser",required = false) Long reservedToIdUser,
+                                                              @RequestParam("roomId") Long roomId
+                                                              ) throws AppException {
+        Demande updated = demandeService.changeDemandeStatus(demandeId, status,reservedToIdUser);
+        if(status.equals(Demande.DemandeStatus.ONLINE))chatService.addDemande(roomId,null);
+        if (updated != null) {
+            return ResponseEntity.ok(demandeService.convertToDto(updated));
+        } else {
+            throw new AppException("",HttpStatus.NOT_FOUND);
+        }
+    }
 }

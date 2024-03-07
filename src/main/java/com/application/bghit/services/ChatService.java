@@ -1,6 +1,7 @@
 package com.application.bghit.services;
 
 import com.application.bghit.entities.ChatMessage;
+import com.application.bghit.entities.Demande;
 import com.application.bghit.entities.Room;
 import com.application.bghit.entities.User;
 import com.application.bghit.exceptions.AppException;
@@ -11,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -55,7 +57,6 @@ public class ChatService {
     {
         return roomRepository.findById(roomId);
     }
-
     public List<ChatMessage> getMessagesForRoom(Long roomId) {
         return chatMessageRepository.findByRoomId(roomId);
     }
@@ -76,6 +77,72 @@ public class ChatService {
         }
         chatMessageRepository.saveAll(messages);
     }
+    public boolean changeRoomStatus(Long roomId, Room.RoomStatus newStatus) {
+        Optional<Room> roomOptional = roomRepository.findById(roomId);
+        if (roomOptional.isPresent()) {
+            Room room = roomOptional.get();
+            room.setStatus(newStatus);
+            room.setBlockedUser(null);
+            roomRepository.save(room);
+            return true;
+        }
+        return false;
+    }
+    public Room saveRoom(Room room)
+    {
+        return roomRepository.save(room);
+    }
+    public boolean archiveRoom(Long roomId, Long archivedId) {
+        Optional<Room> roomOptional = roomRepository.findById(roomId);
+        if (roomOptional.isPresent()) {
+            Room room = roomOptional.get();
+            if(room.getArchivedUserId1() == null)
+            {
+                room.setArchivedUserId1(archivedId);
+            }else{
+                room.setArchivedUserId2(archivedId);
+            }
+            room.setBlockedUser(null);
+            roomRepository.save(room);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean blockRoom(Long roomId, Room.RoomStatus roomStatus, Long blockedUser) {
+        Optional<Room> roomOptional = roomRepository.findById(roomId);
+        if (roomOptional.isPresent()) {
+            Room room = roomOptional.get();
+            room.setStatus(roomStatus);
+            room.setBlockedUser(blockedUser);
+            roomRepository.save(room);
+            return true;
+        }
+        return false;
+    }
+
+    public Room updateArchivedId(Room room,Long senderId) {
+        if(Objects.equals(room.getArchivedUserId1(), senderId))
+        {
+            room.setArchivedUserId1(null);
+        }else if(Objects.equals(room.getArchivedUserId2(), senderId))
+        {
+            room.setArchivedUserId2(null);
+        }
+        return room;
+    }
+
+    public boolean addDemande(Long roomId, Demande demande) {
+        Optional<Room> roomOptional = roomRepository.findById(roomId);
+        if (roomOptional.isPresent()) {
+            Room room = roomOptional.get();
+            room.setDemande(demande);
+            roomRepository.save(room);
+            return true;
+        }
+        return false;
+    }
+
 
     // Plus de méthodes selon vos besoins
 }

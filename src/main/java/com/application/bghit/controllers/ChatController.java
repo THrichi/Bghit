@@ -113,7 +113,7 @@ public class ChatController {
             @RequestParam Long senderId,
             @RequestParam Long recipientId,
             @RequestParam(required = false) Long demandeId,
-            @RequestBody ChatMessage message) {
+            @RequestBody ChatMessage message) throws AppException {
 
         // Vérifiez si une room existe entre senderId et recipientId
         Optional<Room> existingRoom = chatService.findRoomByUsers(senderId, recipientId);
@@ -125,15 +125,6 @@ public class ChatController {
             try {
                 Room newRoom = chatService.createRoom(senderId, recipientId);
                 isNewRoom.set(true);
-                if(demandeId!=null)
-                {
-                    Optional<Demande> demande = demandeService.findDemandeById(demandeId);
-                    if(demande.isPresent())
-                    {
-                        demande.get().setNombreDeReponses(demande.get().getNombreDeReponses()+1);
-                        demandeService.saveDemande(demande.get());
-                    }
-                }
                 return newRoom;
             } catch (AppException e) {
                 throw new RuntimeException(e);
@@ -141,18 +132,50 @@ public class ChatController {
         });
         {
         // Définissez la room pour le message et enregistrez le message
-        message.setRoom(room);
-        message.setSender(senderId);
-        ChatMessage savedMessage = chatService.addMessageToRoom(room.getId(), message);
+        if(!room.getStatus().equals(Room.RoomStatus.BLOCKED ))
+        {
+            if(room.getStatus().equals(Room.RoomStatus.CLOSED) && !message.getType().equals(ChatMessage.MessageType.URL))
+            {
+                throw new AppException("Conversation Closed",HttpStatus.NOT_FOUND);
+            }
+            if(room.getDemande() != null && message.getType().equals(ChatMessage.MessageType.URL) && !room.getDemande().getEtat().equals(Demande.DemandeStatus.CLOSED))
+            {
+                throw new AppException("Demande SENT",HttpStatus.NOT_FOUND);
+            }
 
-        // Modifiez ici pour utiliser convertAndSend
-        if(isNewRoom.get()) {
-            messagingTemplate.convertAndSend(String.format("/newRoom/%s", senderId), room.getId());
-            messagingTemplate.convertAndSend(String.format("/newRoom/%s", recipientId), room.getId());
+            if(demandeId!=null)
+            {
+                Optional<Demande> demande = demandeService.findDemandeById(demandeId);
+                if(demande.isPresent())
+                {
+                    demande.get().setNombreDeReponses(demande.get().getNombreDeReponses()+1);
+                    demandeService.saveDemande(demande.get());
+                    room.setDemande(demande.get());
+                }
+            }
+            //message.getType().equals(ChatMessage.MessageType.URL)
+            //room.getStatus().equals(Room.RoomStatus.CLOSED)
+            room.setStatus(Room.RoomStatus.ACTIF);
+            room = chatService.updateArchivedId(room,senderId);
+            if(message.getType().equals(ChatMessage.MessageType.URL))
+            {
+                room = chatService.updateArchivedId(room,recipientId);
+            }
+            message.setRoom(room);
+            message.setSender(senderId);
+            ChatMessage savedMessage = chatService.addMessageToRoom(room.getId(), message);
+
+            // Modifiez ici pour utiliser convertAndSend
+            if(isNewRoom.get()) {
+                messagingTemplate.convertAndSend(String.format("/newRoom/%s", senderId), room.getId());
+                messagingTemplate.convertAndSend(String.format("/newRoom/%s", recipientId), room.getId());
+            }
+            messagingTemplate.convertAndSend(String.format("/room/%s", room.getId()), savedMessage);
+
+            return ResponseEntity.ok(savedMessage);
+        }else{
+            throw new AppException("Blocked User",HttpStatus.NOT_FOUND);
         }
-        messagingTemplate.convertAndSend(String.format("/room/%s", room.getId()), savedMessage);
-
-        return ResponseEntity.ok(savedMessage);
     }
     }
 //
@@ -164,9 +187,14 @@ public class ChatController {
         for (Room room : rooms)
         {
             result.add(new RoomDto(room.getId(),
-                    new ChatUserDto(room.getUser1().getId(),room.getUser1().getName(),room.getUser1().getEmail(),room.getUser1().getPicture()),
-                    new ChatUserDto(room.getUser2().getId(),room.getUser2().getName(),room.getUser2().getEmail(),room.getUser2().getPicture()),
-                    room.getMessages()
+                    new ChatUserDto(room.getUser1().getId(),room.getUser1().getName(),room.getUser1().getLastName(),room.getUser1().getEmail(),room.getUser1().getPicture()),
+                    new ChatUserDto(room.getUser2().getId(),room.getUser2().getName(),room.getUser2().getLastName(),room.getUser2().getEmail(),room.getUser2().getPicture()),
+                    room.getMessages(),
+                    room.getStatus(),
+                    room.getBlockedUser(),
+                    room.getArchivedUserId1(),
+                    room.getArchivedUserId2(),
+                    demandeService.convertToDto(room.getDemande())
                     ));
         }
         return ResponseEntity.ok(result) ;
@@ -178,11 +206,81 @@ public class ChatController {
         if(oRoom.isEmpty()) throw new AppException("Room Not Found",HttpStatus.NOT_FOUND);
         Room room = oRoom.get();
         RoomDto result = new RoomDto(room.getId(),
-                new ChatUserDto(room.getUser1().getId(),room.getUser1().getName(),room.getUser1().getEmail(),room.getUser1().getPicture()),
-                new ChatUserDto(room.getUser2().getId(),room.getUser2().getName(),room.getUser2().getEmail(),room.getUser2().getPicture()),
-                room.getMessages()
+                new ChatUserDto(room.getUser1().getId(),room.getUser1().getName(),room.getUser1().getLastName(),room.getUser1().getEmail(),room.getUser1().getPicture()),
+                new ChatUserDto(room.getUser2().getId(),room.getUser2().getName(),room.getUser2().getLastName(),room.getUser2().getEmail(),room.getUser2().getPicture()),
+                room.getMessages(),
+                room.getStatus(),
+                room.getBlockedUser(),
+                room.getArchivedUserId1(),
+                room.getArchivedUserId2(),
+                demandeService.convertToDto(room.getDemande())
         );
         return ResponseEntity.ok(result) ;
     }
 
+    @PatchMapping("updateRoom/{roomId}/status")
+    public ResponseEntity<?> changeRoomStatus(@PathVariable Long roomId, @RequestParam("status") Room.RoomStatus status) {
+        boolean updated = chatService.changeRoomStatus(roomId, status);
+        if (updated) {
+            return ResponseEntity.ok().build();
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Room not found with ID: " + roomId);
+        }
+    }
+    @PatchMapping("updateRoom/{roomId}/cancelDemande")
+    public ResponseEntity<?> changeRoomStatus(@PathVariable Long roomId) {
+        Optional<Room> optionalRoom = chatService.findRoomById(roomId);
+        if(optionalRoom.isEmpty())return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Room not found with ID: " + roomId);
+        Room room = optionalRoom.get();
+        room.setDemande(null);
+        return ResponseEntity.ok(chatService.saveRoom(room));
+    }
+
+
+    @PatchMapping("updateRoom/{roomId}/archived")
+    public ResponseEntity<?> archiveRoom(@PathVariable Long roomId, @RequestParam("archivedId") Long archivedId) {
+        boolean updated = chatService.archiveRoom(roomId, archivedId);
+        if (updated) {
+            return ResponseEntity.ok().build();
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Room not found with ID: " + roomId);
+        }
+    }
+    @PatchMapping("updateRoom/{roomId}/block")
+    public ResponseEntity<?> blockRoom(@PathVariable Long roomId, @RequestParam("blockedUser") Long blockedUser) {
+        boolean updated = chatService.blockRoom(roomId, Room.RoomStatus.BLOCKED,blockedUser);
+        if (updated) {
+            return ResponseEntity.ok().build();
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Room not found with ID: " + roomId);
+        }
+    }
+    @PatchMapping("addDemande/{roomId}")
+    public ResponseEntity<?> addDemande(@PathVariable Long roomId, @RequestParam("demandeId") Long demandeId,@RequestParam("reservedToIdUser") Long reservedToIdUser) {
+        Demande demande = demandeService.changeDemandeStatus(demandeId, Demande.DemandeStatus.RESERVED,reservedToIdUser);
+        boolean updated = chatService.addDemande(roomId,demande);
+        if (updated) {
+            return ResponseEntity.ok().build();
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Room not found with ID: " + roomId);
+        }
+    }
+
+    @GetMapping("/room/byUsers")
+    public ResponseEntity<RoomDto> getRoomsById(@RequestParam("user1Id") Long user1Id,@RequestParam("user2Id") Long user2Id) throws AppException {
+        Optional<Room> oRoom = chatService.findRoomByUsers(user1Id,user2Id);
+        if(oRoom.isEmpty()) throw new AppException("Room Not Found",HttpStatus.NOT_FOUND);
+        Room room = oRoom.get();
+        RoomDto result = new RoomDto(room.getId(),
+                new ChatUserDto(room.getUser1().getId(),room.getUser1().getName(),room.getUser1().getLastName(),room.getUser1().getEmail(),room.getUser1().getPicture()),
+                new ChatUserDto(room.getUser2().getId(),room.getUser2().getName(),room.getUser2().getLastName(),room.getUser2().getEmail(),room.getUser2().getPicture()),
+                room.getMessages(),
+                room.getStatus(),
+                room.getBlockedUser(),
+                room.getArchivedUserId1(),
+                room.getArchivedUserId2(),
+                demandeService.convertToDto(room.getDemande())
+        );
+        return ResponseEntity.ok(result) ;
+    }
 }

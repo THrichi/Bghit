@@ -32,6 +32,9 @@ public class Rating {
     @Column(nullable = false,name = "rater_id")
     private Long raterId;
 
+    @Column(nullable = false,name = "user_id")
+    private Long userId;
+
     @Column(nullable = false,name = "rater_name")
     private String raterName;
 

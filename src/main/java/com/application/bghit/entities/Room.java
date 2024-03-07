@@ -39,7 +39,29 @@ public class Room  implements Serializable {
     private User user2;
 
 
+    @Column(name = "blocked_user")
+    private Long blockedUser;
+
     @OneToMany(mappedBy = "room")
     @JsonManagedReference
     private List<ChatMessage> messages = new ArrayList<>();
+
+    public enum RoomStatus {
+        ACTIF,
+        BLOCKED,
+        ARCHIVED,
+        CLOSED,
+    }
+    @Column(nullable = false)
+    private RoomStatus status = RoomStatus.ACTIF;
+
+    @Column(name = "archived_id_1")
+    private Long archivedUserId1;
+
+    @Column(name = "archived_id_2")
+    private Long archivedUserId2;
+
+    @ManyToOne
+    @JoinColumn(name = "demande_id")
+    private Demande demande;
 }

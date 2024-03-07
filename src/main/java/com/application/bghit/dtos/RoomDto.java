@@ -1,6 +1,7 @@
 package com.application.bghit.dtos;
 
 import com.application.bghit.entities.ChatMessage;
+import com.application.bghit.entities.Room;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,4 +18,9 @@ public class RoomDto {
     private ChatUserDto user1;
     private ChatUserDto user2;
     private List<ChatMessage> messages;
+    private Room.RoomStatus status;
+    private Long blockedUser;
+    private Long archivedUserId1;
+    private Long archivedUserId2;
+    private DemandeListDto demande;
 }

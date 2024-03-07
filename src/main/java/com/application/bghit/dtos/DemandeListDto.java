@@ -1,5 +1,6 @@
 package com.application.bghit.dtos;
 
+import com.application.bghit.entities.Demande;
 import com.application.bghit.entities.User;
 
 import java.util.Date;
@@ -14,7 +15,7 @@ public record DemandeListDto(
         boolean surDevis,
         Double prix,
         String categorie,
-        String etat,
+        Demande.DemandeStatus etat,
         String lieu,
         Double latitude,
         Double longitude,
@@ -22,6 +23,8 @@ public record DemandeListDto(
         int nombreDeReponses,
         List<String> images, // Assurez-vous d'avoir une liste d'URLs pour les images
         String theme,
-        UserDto user // Email de l'utilisateur comme identifiant simplifié
+        UserDto user, // Email de l'utilisateur comme identifiant simplifié
+
+        Long reservedToIdUser
 ) {
 }

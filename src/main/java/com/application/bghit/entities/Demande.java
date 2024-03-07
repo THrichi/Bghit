@@ -47,8 +47,18 @@ public class Demande  implements Serializable {
     @Column(nullable = false)
     private String categorie; // Catégorie de la demande
 
+    public enum DemandeStatus {
+        CREATED,
+        ONLINE,
+        RESERVED,
+        INPROGRESS,
+        RATING,
+        ARCHIVED,
+        CLOSED
+    }
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String etat; // État de la demande
+    private DemandeStatus etat = DemandeStatus.CREATED; // État de la demande
 
     @Column(nullable = false, length = 255)
     private String lieu;
@@ -87,4 +97,8 @@ public class Demande  implements Serializable {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+
+    @Column(name = "reserved_to_user")
+    private Long reservedToIdUser;
 }

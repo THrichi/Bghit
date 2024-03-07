@@ -111,7 +111,7 @@ public class DemandeService {
 
         // Initialiser les champs manquants
         demande.setDateCreation(new Date());
-        demande.setEtat("Nouveau");
+        demande.setEtat(Demande.DemandeStatus.CREATED);
         demande.setNombreDeVues(0);
         demande.setNombreDeReponses(0);
         demande.setTheme("Thème par défaut"); // Adaptez à votre logique
@@ -169,28 +169,33 @@ public class DemandeService {
         return null;
     }
    public  DemandeListDto convertToDto(Demande demande) {
-            List<String> imagesUrls = demande.getImages().stream()
-                    .map(Image::getUrl) // Utilisation directe de l'URL de l'image
-                    .collect(Collectors.toList());
-            return new DemandeListDto(
-                    demande.getIdDemande(),
-                    demande.getTitre(),
-                    demande.getDescription(),
-                    demande.getDateCreation(),
-                    demande.isEstPayant(),
-                    demande.isSurDevis(),
-                    demande.getPrix(),
-                    demande.getCategorie(),
-                    demande.getEtat(),
-                    demande.getLieu(),
-                    demande.getLatitude(),
-                    demande.getLongitude(),
-                    demande.getNombreDeVues(),
-                    demande.getNombreDeReponses(),
-                    imagesUrls,
-                    demande.getTheme(),
-                    convertToUserDto(demande.getUser())
-            );
+            if(demande != null)
+            {
+                List<String> imagesUrls = demande.getImages().stream()
+                        .map(Image::getUrl) // Utilisation directe de l'URL de l'image
+                        .collect(Collectors.toList());
+                return new DemandeListDto(
+                        demande.getIdDemande(),
+                        demande.getTitre(),
+                        demande.getDescription(),
+                        demande.getDateCreation(),
+                        demande.isEstPayant(),
+                        demande.isSurDevis(),
+                        demande.getPrix(),
+                        demande.getCategorie(),
+                        demande.getEtat(),
+                        demande.getLieu(),
+                        demande.getLatitude(),
+                        demande.getLongitude(),
+                        demande.getNombreDeVues(),
+                        demande.getNombreDeReponses(),
+                        imagesUrls,
+                        demande.getTheme(),
+                        convertToUserDto(demande.getUser()),
+                        demande.getReservedToIdUser()
+                );
+            }
+            return null;
         }
     public UserDto convertToUserDto(User user) {
         UserDto userDto = new UserDto();
@@ -231,6 +236,20 @@ public class DemandeService {
         demandeRepository.delete(demande); // Sauvegarde de l'utilisateur mis à jour
     }
 
+    public Demande changeDemandeStatus(Long demandeId, Demande.DemandeStatus newStatus, Long reservedToIdUser) {
+        Optional<Demande> demandeOptional = demandeRepository.findById(demandeId);
+        if (demandeOptional.isPresent()) {
+            Demande demande = demandeOptional.get();
+            demande.setEtat(newStatus);
+            if(reservedToIdUser!=null)
+            {
+                demande.setReservedToIdUser(reservedToIdUser);
+            }
+            demandeRepository.save(demande);
+            return demande;
+        }
+        return null;
+    }
 
 }
 
