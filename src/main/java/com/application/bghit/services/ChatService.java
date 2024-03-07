@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -65,8 +64,17 @@ public class ChatService {
         return roomRepository.findRoomByUsers(senderId,recipientId);
     }
 
-    public List<Room> findRoomsByUser(Long roomId) {
-        return roomRepository.findRoomsByUser(roomId);
+    public List<Room> findRoomsByUser(Long roomId, Room.RoomStatus status, Long userId) {
+        if(status == null)
+        {
+            return roomRepository.findRoomsByUser(roomId);
+        }else{
+            if(status.equals(Room.RoomStatus.ARCHIVED))
+            {
+                return roomRepository.findRoomsArchivedByUser(userId);
+            }
+            return roomRepository.findRoomsByUser(roomId,status);
+        }
     }
 
     public void updateMessagesStatusInRoom(Long userId,Long roomId, ChatMessage.MessageStatus status) {

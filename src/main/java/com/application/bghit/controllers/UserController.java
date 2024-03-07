@@ -2,7 +2,6 @@ package com.application.bghit.controllers;
 
 import com.application.bghit.config.UserAuthProvider;
 import com.application.bghit.dtos.*;
-import com.application.bghit.entities.Demande;
 import com.application.bghit.entities.Rating;
 import com.application.bghit.entities.User;
 import com.application.bghit.entities.Verified;
@@ -65,6 +64,9 @@ public class UserController {
                 return ResponseEntity.status(HttpStatus.CONFLICT).body("La note pour cet utilisateur ne peut pas être dupliquée.");
             }
             ratingRepository.save(rating);
+            Double userRating = ratingRepository.findAverageRating(userId);
+            System.out.println("userRating : "+userRating);
+            user.setRating(userRating);
             user.getRatings().add(rating);
             userService.saveUser(user);
             return ResponseEntity.ok(true);

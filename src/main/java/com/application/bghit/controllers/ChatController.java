@@ -2,7 +2,6 @@ package com.application.bghit.controllers;
 
 import com.application.bghit.dtos.ChatUserDto;
 import com.application.bghit.dtos.RoomDto;
-import com.application.bghit.dtos.UserDto;
 import com.application.bghit.entities.ChatMessage;
 import com.application.bghit.entities.Demande;
 import com.application.bghit.entities.Room;
@@ -12,7 +11,6 @@ import com.application.bghit.services.ChatService;
 import com.application.bghit.services.DemandeService;
 import com.application.bghit.services.UserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -21,7 +19,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @RestController
@@ -181,14 +178,18 @@ public class ChatController {
 //
 //                        messagingTemplate.convertAndSend(String.format("/newRoom/%s", recipientId), room2);
     @GetMapping("/rooms/{userId}")
-    public ResponseEntity<List<RoomDto>> getRoomsByUser(@PathVariable Long userId) {
-        List<Room> rooms = chatService.findRoomsByUser(userId);
+    public ResponseEntity<List<RoomDto>> getRoomsByUser(@PathVariable Long userId, @RequestParam(required = false) Room.RoomStatus status) throws AppException {
+
+        String userEmail = UserService.getCurrentUserEmail();
+        Optional<User> optionalUser = userService.findByEmail(userEmail);
+        if(optionalUser.isEmpty()) throw new AppException("Unknown User",HttpStatus.NOT_FOUND);
+        List<Room> rooms = chatService.findRoomsByUser(userId,status,optionalUser.get().getId());
         List<RoomDto> result = new ArrayList<>();
         for (Room room : rooms)
         {
             result.add(new RoomDto(room.getId(),
-                    new ChatUserDto(room.getUser1().getId(),room.getUser1().getName(),room.getUser1().getLastName(),room.getUser1().getEmail(),room.getUser1().getPicture()),
-                    new ChatUserDto(room.getUser2().getId(),room.getUser2().getName(),room.getUser2().getLastName(),room.getUser2().getEmail(),room.getUser2().getPicture()),
+                    new ChatUserDto(room.getUser1().getId(),room.getUser1().getName(),room.getUser1().getLastName(),room.getUser1().getEmail(),room.getUser1().getPicture(),room.getUser1().getRating(),room.getUser1().getAffairesConcluses()),
+                    new ChatUserDto(room.getUser2().getId(),room.getUser2().getName(),room.getUser2().getLastName(),room.getUser2().getEmail(),room.getUser2().getPicture(),room.getUser2().getRating(),room.getUser2().getAffairesConcluses()),
                     room.getMessages(),
                     room.getStatus(),
                     room.getBlockedUser(),
@@ -206,8 +207,8 @@ public class ChatController {
         if(oRoom.isEmpty()) throw new AppException("Room Not Found",HttpStatus.NOT_FOUND);
         Room room = oRoom.get();
         RoomDto result = new RoomDto(room.getId(),
-                new ChatUserDto(room.getUser1().getId(),room.getUser1().getName(),room.getUser1().getLastName(),room.getUser1().getEmail(),room.getUser1().getPicture()),
-                new ChatUserDto(room.getUser2().getId(),room.getUser2().getName(),room.getUser2().getLastName(),room.getUser2().getEmail(),room.getUser2().getPicture()),
+                new ChatUserDto(room.getUser1().getId(),room.getUser1().getName(),room.getUser1().getLastName(),room.getUser1().getEmail(),room.getUser1().getPicture(),room.getUser1().getRating(),room.getUser1().getAffairesConcluses()),
+                new ChatUserDto(room.getUser2().getId(),room.getUser2().getName(),room.getUser2().getLastName(),room.getUser2().getEmail(),room.getUser2().getPicture(),room.getUser2().getRating(),room.getUser2().getAffairesConcluses()),
                 room.getMessages(),
                 room.getStatus(),
                 room.getBlockedUser(),
@@ -232,6 +233,11 @@ public class ChatController {
         Optional<Room> optionalRoom = chatService.findRoomById(roomId);
         if(optionalRoom.isEmpty())return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Room not found with ID: " + roomId);
         Room room = optionalRoom.get();
+        Optional<Demande> optionalDemande = demandeService.findDemandeById(room.getDemande().getIdDemande());
+        if(optionalDemande.isEmpty())return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Demande not found");
+        Demande demande = optionalDemande.get();
+        demande.setEtat(Demande.DemandeStatus.ONLINE);
+        demandeService.saveDemande(demande);
         room.setDemande(null);
         return ResponseEntity.ok(chatService.saveRoom(room));
     }
@@ -272,8 +278,8 @@ public class ChatController {
         if(oRoom.isEmpty()) throw new AppException("Room Not Found",HttpStatus.NOT_FOUND);
         Room room = oRoom.get();
         RoomDto result = new RoomDto(room.getId(),
-                new ChatUserDto(room.getUser1().getId(),room.getUser1().getName(),room.getUser1().getLastName(),room.getUser1().getEmail(),room.getUser1().getPicture()),
-                new ChatUserDto(room.getUser2().getId(),room.getUser2().getName(),room.getUser2().getLastName(),room.getUser2().getEmail(),room.getUser2().getPicture()),
+                new ChatUserDto(room.getUser1().getId(),room.getUser1().getName(),room.getUser1().getLastName(),room.getUser1().getEmail(),room.getUser1().getPicture(),room.getUser1().getRating(),room.getUser1().getAffairesConcluses()),
+                new ChatUserDto(room.getUser2().getId(),room.getUser2().getName(),room.getUser2().getLastName(),room.getUser2().getEmail(),room.getUser2().getPicture(),room.getUser2().getRating(),room.getUser2().getAffairesConcluses()),
                 room.getMessages(),
                 room.getStatus(),
                 room.getBlockedUser(),

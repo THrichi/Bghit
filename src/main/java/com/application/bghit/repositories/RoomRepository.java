@@ -11,4 +11,10 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
     Optional<Room> findRoomByUsers(Long senderId, Long recipientId);
     @Query("SELECT r FROM Room r WHERE r.user1.id = :roomId  OR  r.user2.id = :roomId")
     List<Room> findRoomsByUser(Long roomId);
+    @Query("SELECT r FROM Room r WHERE (r.user1.id = :roomId OR r.user2.id = :roomId) AND r.status = :status")
+    List<Room> findRoomsByUser(Long roomId, Room.RoomStatus status);
+
+
+    @Query("SELECT r FROM Room r WHERE r.archivedUserId1 = :userId OR r.archivedUserId2 = :userId")
+    List<Room> findRoomsArchivedByUser(Long userId);
 }

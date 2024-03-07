@@ -5,19 +5,11 @@ import jakarta.persistence.*;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -53,6 +45,7 @@ public class Room  implements Serializable {
         CLOSED,
     }
     @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
     private RoomStatus status = RoomStatus.ACTIF;
 
     @Column(name = "archived_id_1")
@@ -64,4 +57,5 @@ public class Room  implements Serializable {
     @ManyToOne
     @JoinColumn(name = "demande_id")
     private Demande demande;
+
 }
