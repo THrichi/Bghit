@@ -5,6 +5,7 @@ import com.application.bghit.entities.*;
 import com.application.bghit.exceptions.AppException;
 import com.application.bghit.repositories.PhotoCollectionRepository;
 import com.application.bghit.repositories.SearchRepository;
+import com.application.bghit.repositories.SettingsRepository;
 import com.application.bghit.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -12,6 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -19,10 +21,7 @@ import java.nio.CharBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -38,6 +37,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final SearchRepository searchRepository;
     private final PhotoCollectionRepository photoCollectionRepository;
+    private final SettingsRepository settingsRepository;
 
     public UserDto login(CredentialsDto credentialsDto) throws AppException {
         User user = userRepository.findByEmail(credentialsDto.login())
@@ -74,6 +74,10 @@ public class UserService {
         // Conversion des collections de photos
         List<PhotoCollectionDto> photosDto = user.getPhotos().stream()
                 .map(photo -> new PhotoCollectionDto(photo.getId(), photo.getUrl()))
+                .collect(Collectors.toList());
+
+        List<DemandeListDto> demandeDto = user.getFavoris().stream()
+                .map(this::convertToDto)
                 .collect(Collectors.toList());
 
         // Conversion de l'objet Verified
@@ -115,58 +119,115 @@ public class UserService {
                 user.isDisponibleALHeure(),
                 StatusDto.valueOf(user.getStatus().name()), // Assurez-vous de convertir correctement l'énumération
                 verifiedDto,
-                searchFavorisDto,
-                photosDto
+                user.getSearchFavoris(),
+                photosDto,
+                demandeDto,
+                user.getSettings()
         ); // Exemple de DTO avec username et email
     }
-
+    public DemandeListDto convertToDto(Demande demande) {
+        if(demande != null)
+        {
+            List<String> imagesUrls = demande.getImages().stream()
+                    .map(Image::getUrl) // Utilisation directe de l'URL de l'image
+                    .collect(Collectors.toList());
+            return new DemandeListDto(
+                    demande.getIdDemande(),
+                    demande.getDescription(),
+                    demande.getDateCreation(),
+                    demande.isEstPayant(),
+                    demande.isSurDevis(),
+                    demande.getPrix(),
+                    demande.getCategorie(),
+                    demande.getEtat(),
+                    demande.getLieu(),
+                    demande.getLatitude(),
+                    demande.getLongitude(),
+                    demande.getNombreDeVues(),
+                    demande.getNombreDeReponses(),
+                    imagesUrls,
+                    demande.getTheme(),
+                    convertToUserDto(demande.getUser()),
+                    demande.getReservedToIdUser(),
+                    demande.getType()
+            );
+        }
+        return null;
+    }
+    public UserDto convertToUserDto(User user) {
+        UserDto userDto = new UserDto();
+        userDto.setId(user.getId());
+        userDto.setName(user.getName());
+        userDto.setLastName(user.getLastName());
+        userDto.setPicture(user.getPicture());
+        userDto.setEmail(user.getEmail());
+        userDto.setTelephone(user.getTelephone());
+        userDto.setProfilCompleted(user.isProfileCompleted());
+        userDto.setEmailVerified(user.isEmailValidated());
+        userDto.setRating(user.getRating());
+        userDto.setDateInscription(user.getDateInscription());
+        userDto.setAffairesConcluses(user.getAffairesConcluses());
+        return userDto;
+    }
     public UserDto loginWithGoogle(String email) throws AppException {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new AppException("Unknown User", HttpStatus.NOT_FOUND));
-
         return UserDto.builder()
-                .email(user.getEmail())
+                .email(email)
                 .build();
     }
-    public UserDto firstLoginWithGoogle(SignUpDto signUpDto) throws AppException {
-        Optional<User> oUser = userRepository.findByEmail(signUpDto.email());
-        if(oUser.isPresent())
-        {
-            this.loginWithGoogle(signUpDto.email());
-        }
-        String passwordAsString = new String(signUpDto.password());
+    /*public UserDto firstLoginWithGoogle(String email) throws AppException {
+        String passwordAsString = PasswordGenerator.generateRandomPassword();
         User newUser = new User();
-        newUser.setEmail(signUpDto.email());
-        newUser.setName(signUpDto.name());
-        newUser.setLastName(signUpDto.lastName());
+        newUser.setEmail(email);
+        newUser.setName("");
+        newUser.setLastName("");
         newUser.setPassword(passwordEncoder.encode(CharBuffer.wrap(passwordAsString)));
-
+        newUser.setEmailValidated(true);
         newUser = userRepository.save(newUser);
 
         return convertToDto(newUser);
-    }
+    }*/
+    public String resetUserPassword(User user) {
+        // Générer un nouveau mot de passe temporaire
+        String randomPassword = PasswordGenerator.generateRandomPassword();
+        // Hacher le mot de passe temporaire
+        String hashedPassword = passwordEncoder.encode(randomPassword);
 
-    public UserDto register(SignUpDto signUpDto) throws AppException {
-        Optional<User> oUser = userRepository.findByEmail(signUpDto.email());
-        System.out.println(signUpDto);
+        // Récupérer l'utilisateur par son email et mettre à jour son mot de passe
+        user.setPassword(hashedPassword);
+        userRepository.save(user);
+        return randomPassword;
+    }
+    @Transactional
+    public UserDto register(String email,String randomPassword, boolean autoValidateEmail) throws AppException {
+        Optional<User> oUser = userRepository.findByEmail(email);
         if(oUser.isPresent())
         {
             throw new AppException("Login Alrdy Exists", HttpStatus.BAD_REQUEST);
         }
-        String passwordAsString = new String(signUpDto.password());
 
         List<PhotoCollection> collections = new ArrayList<>();
         List<Search> searchFavoris = new ArrayList<>();
         User newUser = new User();
-        newUser.setEmail(signUpDto.email());
-        newUser.setName(signUpDto.name());
-        newUser.setLastName(signUpDto.lastName());
-        newUser.setPassword(passwordEncoder.encode(CharBuffer.wrap(passwordAsString)));
+        newUser.setEmail(email);
+        newUser.setName("");
+        newUser.setLastName("");
+        newUser.setPassword(passwordEncoder.encode(CharBuffer.wrap(randomPassword)));
         newUser.setPhotos(collections);
         newUser.setSearchFavoris(searchFavoris);
-        newUser = userRepository.save(newUser);
+        newUser.setEmailValidated(autoValidateEmail);
+        // Sauvegarder d'abord l'utilisateur sans la configuration pour obtenir un ID
+        User savedUser = userRepository.save(newUser);
 
-        return convertToDto(newUser);
+        // Créer et sauvegarder les paramètres de l'utilisateur
+        Settings settings = new Settings();
+        // settings.setUser(savedUser); // Inutile si vous sauvegardez `User` en premier et établissez la relation dans `User`
+        settingsRepository.save(settings);
+
+        // Établir la relation et sauvegarder à nouveau l'utilisateur
+        savedUser.setSettings(settings);
+        userRepository.save(savedUser);
+
+        return convertToDto(savedUser);
 
     }
     public static UserDto convertToDto(User user) {
@@ -281,6 +342,42 @@ public class UserService {
         return userRepository.save(user);
 
     }
+    public User completeUser(User user, UserUpdateDto userDetails) {
+        if (userDetails.name() != null && !userDetails.name().equals(user.getName())) {
+            user.setName(userDetails.name());
+        }
+        if (userDetails.lastName() != null && !userDetails.lastName().equals(user.getLastName())) {
+            user.setLastName(userDetails.lastName());
+        }
+        if (userDetails.telephone() != null && !userDetails.telephone().equals(user.getTelephone())) {
+            Verified verified = user.getVerified();
+            verified.setPhoneVerified(false);
+            user.setTelephone(userDetails.telephone());
+            user.setVerified(verified);
+        }
+        if (userDetails.dateNaissance() != null && !userDetails.dateNaissance().equals(user.getDateNaissance())) {
+            user.setDateNaissance(userDetails.dateNaissance());
+        }
+        if (userDetails.adresse() != null && !userDetails.adresse().equals(user.getAdresse())) {
+            user.setAdresse(userDetails.adresse());
+        }
+        if (userDetails.latitude() != null && !userDetails.latitude().equals(user.getLatitude())) {
+            user.setLatitude(userDetails.latitude());
+        }
+        if (userDetails.longitude() != null && !userDetails.longitude().equals(user.getLongitude())) {
+            user.setLongitude(userDetails.longitude());
+        }
+        if (userDetails.password() != null) {
+            String hashedPassword = passwordEncoder.encode(userDetails.password());
+            user.setPassword(hashedPassword);
+        }
+        if (userDetails.image() != null && !userDetails.image().isEmpty()) {
+            user.setPicture(userDetails.image());
+        }
+        user.setProfileCompleted(true);
+        return userRepository.save(user);
+
+    }
     public void savePhoto(MultipartFile image, User user) throws AppException {
         // Générer un nom de fichier unique pour l'image
         String uniqueFileName = user.getId() + "/" + UUID.randomUUID().toString() + "_" + image.getOriginalFilename();
@@ -306,5 +403,85 @@ public class UserService {
         } catch (IOException e) {
             throw new AppException("Erreur lors de la sauvegarde de l'image.", HttpStatus.BAD_REQUEST);
         }
+    }
+    public boolean addDemandeFavoris(Demande demande) throws AppException {
+        String email = getCurrentUserEmail();
+        Optional<User> optionalUser = findByEmail(email);
+        if(optionalUser.isEmpty())throw new AppException("User Not Found",HttpStatus.NOT_FOUND);
+        User user = optionalUser.get();
+        if(user.getFavoris().contains(demande))throw new AppException("Deja ajouter",HttpStatus.NOT_FOUND);
+        user.getFavoris().add(demande);
+        saveUser(user);
+        return true;
+    }
+    public boolean removeDemandeFavoris(Demande demande) throws AppException {
+        String email = getCurrentUserEmail();
+        Optional<User> optionalUser = findByEmail(email);
+        if(optionalUser.isEmpty())throw new AppException("User Not Found",HttpStatus.NOT_FOUND);
+        User user = optionalUser.get();
+        if(!user.getFavoris().contains(demande))throw new AppException("n existe pas",HttpStatus.NOT_FOUND);
+        user.getFavoris().remove(demande);
+        saveUser(user);
+        return true;
+    }
+
+    public boolean addSearchFavoris(Search search) throws AppException {
+        String email = getCurrentUserEmail();
+        Optional<User> optionalUser = findByEmail(email);
+        if(optionalUser.isEmpty())throw new AppException("User Not Found",HttpStatus.NOT_FOUND);
+        User user = optionalUser.get();
+        search.setUserId(user.getId());
+        for (Search existingSearch : user.getSearchFavoris()) {
+            if (isSearchEquivalent(existingSearch, search)) {
+                throw new AppException("Déjà ajouté", HttpStatus.CONFLICT); // Modifier le code de statut pour refléter le conflit
+            }
+        }
+        if(search.getNickName() == null)
+        {
+            search.setNickName("Favoris ( " + (user.getSearchFavoris().size()+1) + " )");
+        }
+        searchRepository.save(search);
+        user.getSearchFavoris().add(search);
+        saveUser(user);
+        return true;
+    }
+
+    public boolean removeSearchFavoris(Search search) throws AppException {
+        String email = getCurrentUserEmail();
+        Optional<User> optionalUser = findByEmail(email);
+        if(optionalUser.isEmpty())throw new AppException("User Not Found",HttpStatus.NOT_FOUND);
+        User user = optionalUser.get();
+        if(!user.getSearchFavoris().contains(search))throw new AppException("n existe pas",HttpStatus.NOT_FOUND);
+        user.getSearchFavoris().remove(search);
+        saveUser(user);
+        return true;
+    }
+
+    private boolean isSearchEquivalent(Search s1, Search s2) {
+        return Objects.equals(s1.getUserId(), s2.getUserId()) &&
+                Objects.equals(s1.getKeyword(), s2.getKeyword()) &&
+                Objects.equals(s1.getSearchCategory(), s2.getSearchCategory()) &&
+                s1.getSearchDistance() == s2.getSearchDistance() &&
+                Objects.equals(s1.getSearchLatitude(), s2.getSearchLatitude()) &&
+                Objects.equals(s1.getSearchLongitude(), s2.getSearchLongitude()) &&
+                Objects.equals(s1.getSearchPriceMin(), s2.getSearchPriceMin()) &&
+                Objects.equals(s1.getSearchPriceMax(), s2.getSearchPriceMax()) &&
+                s1.isSearchGratuit() == s2.isSearchGratuit() &&
+                s1.isSearchSurDevis() == s2.isSearchSurDevis();
+    }
+
+    public void updateSettings(Settings settings) throws AppException {
+        String email = getCurrentUserEmail();
+        Optional<User> optionalUser = findByEmail(email);
+        if(optionalUser.isEmpty())throw new AppException("User Not Found",HttpStatus.NOT_FOUND);
+        User user = optionalUser.get();
+        settings.setId(user.getSettings().getId());
+        settingsRepository.save(settings);
+        user.setSettings(settings);
+        userRepository.save(user);
+    }
+
+    public List<User> findAllByFavorisContaining(Demande demande) {
+        return userRepository.findAllByFavorisContaining(demande);
     }
 }

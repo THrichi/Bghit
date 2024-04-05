@@ -1,5 +1,7 @@
 package com.application.bghit.dtos;
 import com.application.bghit.entities.Rating;
+import com.application.bghit.entities.Search;
+import com.application.bghit.entities.Settings;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -35,8 +37,10 @@ public class UserProfilDto {
     private boolean disponibleALHeure;
     private StatusDto status;
     private VerifiedDto verified;
-    private List<SearchDto> searchFavoris;
+    private List<Search> searchFavoris;
     private List<PhotoCollectionDto> photos;
+    private List<DemandeListDto> demandeFavoris;
+    private Settings settings;
 
     // Vous pouvez choisir d'ajouter d'autres champs ici selon les besoins
 }

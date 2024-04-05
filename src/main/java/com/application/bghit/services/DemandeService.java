@@ -1,17 +1,14 @@
 package com.application.bghit.services;
 
-import com.application.bghit.dtos.DemandeCreateDto;
-import com.application.bghit.dtos.DemandeListDto;
-import com.application.bghit.dtos.UserDto;
-import com.application.bghit.entities.Demande;
-import com.application.bghit.entities.Image;
-import com.application.bghit.entities.PhotoCollection;
-import com.application.bghit.entities.User;
+import com.application.bghit.dtos.*;
+import com.application.bghit.entities.*;
 import com.application.bghit.exceptions.AppException;
 import com.application.bghit.repositories.DemandeRepository;
+import com.application.bghit.repositories.RoomRepository;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
@@ -20,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,6 +30,8 @@ import java.util.stream.Collectors;
 public class DemandeService {
 
     private final DemandeRepository demandeRepository;
+    private final RoomRepository roomRepository;
+    private final ImageHandler imageHandler;
 
     private final UserService userService;
     private final Path rootLocation = Paths.get("src/main/resources/static/images/demandes");
@@ -96,10 +96,8 @@ public class DemandeService {
     }
 
     @Transactional
-    public Demande createDemande(DemandeCreateDto demandeDto) throws IOException, AppException {
+    public ConfirmationResponse createDemande(DemandeCreateDto demandeDto) throws IOException, AppException {
         Demande demande = new Demande();
-        System.out.println("demande :" + demande);
-        demande.setTitre(demandeDto.titre());
         demande.setDescription(demandeDto.description());
         demande.setEstPayant(demandeDto.estPayant());
         demande.setSurDevis(demandeDto.surDevis());
@@ -108,7 +106,7 @@ public class DemandeService {
         demande.setLieu(demandeDto.lieu());
         demande.setLatitude(demandeDto.latitude());
         demande.setLongitude(demandeDto.longitude());
-
+        demande.setType(demandeDto.type());
         // Initialiser les champs manquants
         demande.setDateCreation(new Date());
         demande.setEtat(Demande.DemandeStatus.CREATED);
@@ -123,39 +121,45 @@ public class DemandeService {
 
         // Gérer l'enregistrement des images
         if (demandeDto.images() != null) {
-            /*for (MultipartFile file : demandeDto.images()) {
-                String imageUrl = saveImage(file); // Supposons que cette méthode sauvegarde l'image et retourne l'URL
-                Image image = new Image(imageUrl, demande); // Assurez-vous que le constructeur de Image définit correctement les relations
-                demande.addImage(image);
-            }*/
-
             for (MultipartFile file : demandeDto.images()) {
+                if (!file.isEmpty()) {
                 // Génération d'un nom de fichier unique pour chaque fichier
 
-                Path userDirectory = Paths.get(UPLOAD_DIR, user.getId().toString());
-                if (!Files.exists(userDirectory)) {
-                    try {
-                        Files.createDirectories(userDirectory);
-                    } catch (IOException e) {
-                        throw new AppException("Impossible de créer le répertoire pour l'utilisateur", HttpStatus.BAD_REQUEST);
+                    Path userDirectory = Paths.get(UPLOAD_DIR, user.getId().toString());
+                    if (!Files.exists(userDirectory)) {
+                        try {
+                            Files.createDirectories(userDirectory);
+                        } catch (IOException e) {
+                            throw new AppException("Impossible de créer le répertoire pour l'utilisateur", HttpStatus.BAD_REQUEST);
+                        }
                     }
-                }
+                    String fileExtension = getFileExtension(Objects.requireNonNull(file.getOriginalFilename()));
+                    String uniqueFileName = user.getId() + "/" + UUID.randomUUID() + (fileExtension.isEmpty() ? ".jpeg" : "." + fileExtension);
+                    Path fileNameAndPath = Paths.get(UPLOAD_DIR, uniqueFileName);// Utilisation du nom de fichier unique pour le retour
 
-                String uniqueFileName = user.getId()+"/"+UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
-                Path fileNameAndPath = Paths.get(UPLOAD_DIR, uniqueFileName);// Utilisation du nom de fichier unique pour le retour
+                    try {
 
-                try {
-                    Files.write(fileNameAndPath, file.getBytes());
-                    demande.addImage(new Image(uniqueFileName,demande));
-                } catch (IOException e) {
-                    throw new AppException("Erreur lors de la sauvegarde des fichiers", HttpStatus.BAD_REQUEST);
+                        byte[] fileBytes = imageHandler.addWatermark(file, "Bghite.ma");
+                        if(imageHandler.analyseImage(fileBytes)) return new ConfirmationResponse(false, ConfirmationResponse.confirmStatus.ERROR);;
+                        Files.write(fileNameAndPath, fileBytes);
+                        demande.addImage(new Image(uniqueFileName,demande));
+                    } catch (IOException e) {
+                        throw new AppException("Erreur lors de la sauvegarde des fichiers", HttpStatus.BAD_REQUEST);
+                    }
                 }
             }
         }
-
-        return demandeRepository.save(demande);
+        demandeRepository.save(demande);
+        return new ConfirmationResponse(true, ConfirmationResponse.confirmStatus.SUCCESS);
     }
-
+    private String getFileExtension(String filename) {
+        if (filename.contains(".")) {
+            return filename.substring(filename.lastIndexOf(".") + 1);
+        } else {
+            // Gérer les fichiers sans extension ou attribuer une extension par défaut
+            return ""; // ou retourner par exemple "png" ou "jpg" selon le contexte
+        }
+    }
     private String saveImage(MultipartFile file) throws IOException {
         if (file != null && !file.isEmpty()) {
             // Assurez-vous que le dossier des images existe ou est créé
@@ -168,7 +172,7 @@ public class DemandeService {
 
         return null;
     }
-   public  DemandeListDto convertToDto(Demande demande) {
+   public DemandeListDto convertToDto(Demande demande) {
             if(demande != null)
             {
                 List<String> imagesUrls = demande.getImages().stream()
@@ -176,7 +180,6 @@ public class DemandeService {
                         .collect(Collectors.toList());
                 return new DemandeListDto(
                         demande.getIdDemande(),
-                        demande.getTitre(),
                         demande.getDescription(),
                         demande.getDateCreation(),
                         demande.isEstPayant(),
@@ -192,7 +195,8 @@ public class DemandeService {
                         imagesUrls,
                         demande.getTheme(),
                         convertToUserDto(demande.getUser()),
-                        demande.getReservedToIdUser()
+                        demande.getReservedToIdUser(),
+                        demande.getType()
                 );
             }
             return null;
@@ -219,8 +223,32 @@ public class DemandeService {
                 .orElseThrow(() -> new AppException("Demande non trouvée", HttpStatus.NOT_FOUND));
 
         if (!userEmail.equals(demande.getUser().getEmail())) {
-            throw new AppException("La photo n'appartient pas à l'utilisateur", HttpStatus.BAD_REQUEST);
+            throw new AppException("La Demande n'appartient pas à l'utilisateur", HttpStatus.BAD_REQUEST);
         }
+        if (!demande.getEtat().equals(Demande.DemandeStatus.ONLINE) && !demande.getEtat().equals(Demande.DemandeStatus.CLOSED)) {
+            throw new AppException("La Demande ne peut pas etre supprimer", HttpStatus.BAD_REQUEST);
+        }
+
+
+        // Trouver toutes les Rooms associées à la Demande
+        List<Room> rooms = roomRepository.findByDemande(demande);
+
+        // Retirer la Demande de chaque Room
+        for (Room room : rooms) {
+            room.setStatus(Room.RoomStatus.CLOSED);
+            room.setDemande(null); // Retirer la référence à la Demande
+            roomRepository.save(room); // Sauvegarder la Room modifiée
+        }
+
+        List<User> usersWithDemandeInFavoris = userService.findAllByFavorisContaining(demande);
+
+        // Retirer la demande des favoris de chaque utilisateur
+        for (User user : usersWithDemandeInFavoris) {
+            user.getFavoris().remove(demande);
+            userService.saveUser(user); // Sauvegarder les changements pour chaque utilisateur
+        }
+
+
         List<Image> tmpImages = demande.getImages();
         for (Image image : tmpImages)
         {
@@ -232,10 +260,13 @@ public class DemandeService {
             }
         }
         demande.getImages().clear(); // Clears the existing collection without replacing it
+
         // Suppression de la relation
         demandeRepository.delete(demande); // Sauvegarde de l'utilisateur mis à jour
     }
-
+    public List<CategorieCountDTO> getTop5Categories(Demande.DemandeType type) {
+        return demandeRepository.findTopCategories(type,PageRequest.of(0, 5));
+    }
     public Demande changeDemandeStatus(Long demandeId, Demande.DemandeStatus newStatus, Long reservedToIdUser) {
         Optional<Demande> demandeOptional = demandeRepository.findById(demandeId);
         if (demandeOptional.isPresent()) {

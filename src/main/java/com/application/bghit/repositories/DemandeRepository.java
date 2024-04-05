@@ -1,6 +1,7 @@
 package com.application.bghit.repositories;
 
 
+import com.application.bghit.dtos.CategorieCountDTO;
 import com.application.bghit.entities.Demande;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,5 +25,9 @@ public interface DemandeRepository extends JpaRepository<Demande, Long> , JpaSpe
     @Query("SELECT d FROM Demande d WHERE d.user.id = :id")
     List<Demande> findByUserId(@Param("id") Long id);
     Page<Demande> findAll(Specification specification, Pageable pageable);
+    @Query("SELECT new com.application.bghit.dtos.CategorieCountDTO(d.categorie, COUNT(d)) " +
+            "FROM Demande d WHERE d.etat = 'ONLINE' AND d.type = :type GROUP BY d.categorie " +
+            "ORDER BY COUNT(d) DESC")
+    List<CategorieCountDTO> findTopCategories(@Param("type") Demande.DemandeType type, Pageable pageable);
 
 }

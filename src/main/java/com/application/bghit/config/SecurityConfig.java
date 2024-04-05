@@ -31,7 +31,8 @@ public class SecurityConfig {
                 .addFilterBefore(new JwtAuthFilter(userAuthProvider), BasicAuthenticationFilter.class)
                 .sessionManagement(c -> c.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests((authorize) -> authorize
-                        .requestMatchers("/","/login","/register", "/auth/**","/images/**", "/public/**","/people/**","/ws/**").permitAll()
+                        .requestMatchers("/","/login","/register", "/auth/**","/images/**",
+                                "/public/**","/people/**","/ws/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 //.oauth2ResourceServer(c -> c.opaqueToken(Customizer.withDefaults()))

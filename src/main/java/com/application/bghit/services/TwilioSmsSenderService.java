@@ -36,7 +36,6 @@ public class TwilioSmsSenderService {
     // Méthode pour démarrer la vérification
     public void startVerification(String phoneNumber) {
         Verification verification = Verification.creator(VERIFY_SERVICE_SID, phoneNumber, "sms").create();
-        System.out.println("Verification started: " + verification.getStatus());
     }
 
     // Méthode pour vérifier le code

@@ -1,5 +1,7 @@
 package com.application.bghit.entities;
 
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,6 +20,7 @@ import java.util.List;
 @Builder
 @Data
 @Entity
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
 @Table(name="app_user")
 public class User implements Serializable {
 
@@ -38,7 +41,7 @@ public class User implements Serializable {
     private LocalDate dateNaissance;
 
     @Builder.Default
-    private String picture = "/images/default-profile.jpg";
+    private String picture = "default/default-image.jpg";
 
     @Column(nullable = false, unique = true)
     private String email;
@@ -98,7 +101,7 @@ public class User implements Serializable {
     @Builder.Default
     private Status status = Status.HORS_LIGNE;
 
-    @OneToMany
+    @ManyToMany
     @Builder.Default
     private List<Demande> favoris = new ArrayList<>();
 
@@ -109,6 +112,13 @@ public class User implements Serializable {
     @OneToMany
     @Builder.Default
     private List<PhotoCollection> photos = new ArrayList<>();
+
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "settings_id", referencedColumnName = "id")
+    private Settings settings;
+
+
+    private String resetPasswordToken;
 
     public void addPhotoCollection(PhotoCollection image) {
         photos.add(image);

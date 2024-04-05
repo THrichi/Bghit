@@ -1,5 +1,7 @@
 package com.application.bghit.controllers;
 
+import com.application.bghit.dtos.CategorieCountDTO;
+import com.application.bghit.dtos.ConfirmationResponse;
 import com.application.bghit.dtos.DemandeCreateDto;
 import com.application.bghit.dtos.DemandeListDto;
 import com.application.bghit.entities.Demande;
@@ -17,6 +19,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -34,10 +37,8 @@ public class DemandController {
     private final ChatService chatService;
 
     @PostMapping("/demande/create")
-    public ResponseEntity<Demande> createDemande(@ModelAttribute DemandeCreateDto demandeDto) throws IOException, AppException {
-        System.out.println("demande :" + demandeDto);
-        Demande demande = demandeService.createDemande(demandeDto);
-        return ResponseEntity.ok(demande);
+    public ResponseEntity<ConfirmationResponse> createDemande(@Validated @ModelAttribute DemandeCreateDto demandeDto) throws IOException, AppException {
+       return ResponseEntity.ok(demandeService.createDemande(demandeDto));
     }
     @GetMapping("/demande/by-email")
     public ResponseEntity<List<DemandeListDto>> getDemandesByUserEmail(@RequestParam String email) {
@@ -70,20 +71,19 @@ public class DemandController {
     @GetMapping("/demandes")
     public ResponseEntity<Page<DemandeListDto>> searchingAuthUsers(@RequestParam(required = false) String titre,
                                                                    @RequestParam(required = false) String categorie,
-                                                                   @RequestParam(required = false) String etat,
                                                                    @RequestParam(required = false) Double lat,
                                                                    @RequestParam(required = false) Double lng,
                                                                    @RequestParam(required = false) Double distance,
                                                                    @RequestParam(required = false) Double prixMin,
                                                                    @RequestParam(required = false) Double prixMax,
                                                                    @RequestParam(required = false) boolean gratuit,
-                                                                   @RequestParam(required = false) boolean estPayant,
-                                                                   @RequestParam(required = false) String etats,
+                                                                   @RequestParam(required = false) Boolean surDevis,
+                                                                   @RequestParam(required = false) String etat,
+                                                                   @RequestParam(required = false) Demande.DemandeType type,
                                                                    Pageable pageable) {
-
         List<Demande.DemandeStatus> etatList = null;
-        if (etats != null && !etats.isEmpty()) {
-            etatList = Arrays.stream(etats.split(","))
+        if (etat != null && !etat.isEmpty()) {
+            etatList = Arrays.stream(etat.split(","))
                     .map(String::trim)
                     .map(String::toUpperCase)
                     .map(Demande.DemandeStatus::valueOf)
@@ -91,7 +91,26 @@ public class DemandController {
         }
 
 
-        Specification<Demande> specification = DemandeSpecification.withDynamicQuery(titre, categorie, etat, lat, lng, distance,gratuit,prixMin,prixMax,estPayant,etatList);
+        Specification<Demande> specification = DemandeSpecification.withDynamicQuery(titre, categorie, lat, lng, distance,prixMin,prixMax,gratuit,surDevis,etatList,type);
+        return ResponseEntity.ok(demandeService.findAll(specification, pageable));
+    }
+
+    @GetMapping("/public/demandes")
+    public ResponseEntity<Page<DemandeListDto>> searchingAuthUsers(@RequestParam(required = false) String etat,
+                                                                   @RequestParam(required = false) Demande.DemandeType type,
+                                                                   Pageable pageable) {
+        List<Demande.DemandeStatus> etatList = null;
+        if (etat != null && !etat.isEmpty()) {
+            etatList = Arrays.stream(etat.split(","))
+                    .map(String::trim)
+                    .map(String::toUpperCase)
+                    .map(Demande.DemandeStatus::valueOf)
+                    .toList();
+        }
+
+
+        Specification<Demande> specification = DemandeSpecification.withDynamicQuery(null, null, null, null, null,null,null,false,null,etatList,type);
+
         return ResponseEntity.ok(demandeService.findAll(specification, pageable));
     }
     @DeleteMapping("/demande/remove")
@@ -113,5 +132,11 @@ public class DemandController {
         } else {
             throw new AppException("",HttpStatus.NOT_FOUND);
         }
+    }
+
+    @GetMapping("/demande/top-categories")
+    public ResponseEntity<List<CategorieCountDTO>> getTopCategories(@RequestParam("type") Demande.DemandeType type) {
+        List<CategorieCountDTO> topCategories = demandeService.getTop5Categories(type);
+        return ResponseEntity.ok(topCategories);
     }
 }

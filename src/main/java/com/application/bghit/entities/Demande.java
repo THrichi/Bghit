@@ -1,12 +1,12 @@
 package com.application.bghit.entities;
 
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.Serializable;
@@ -14,11 +14,14 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
 @Entity
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "idDemande")
 @Table(name = "demandes")
 @Getter
 @Setter
-@NoArgsConstructor
 public class Demande  implements Serializable {
 
     @Id
@@ -26,10 +29,8 @@ public class Demande  implements Serializable {
     @Column(name = "id_demande")
     private Long idDemande;
 
-    @Column(nullable = false, length = 100)
-    private String titre;
 
-    @Column(nullable = false, length = 500)
+    @Column(nullable = false, length = 2000)
     private String description;
 
     @Column(nullable = false)
@@ -63,11 +64,11 @@ public class Demande  implements Serializable {
     @Column(nullable = false, length = 255)
     private String lieu;
 
-    @Column(nullable = true)
-    private Double latitude;
+    @Builder.Default
+    private Double latitude = 0.0;
 
-    @Column(nullable = true)
-    private Double longitude;
+    @Builder.Default
+    private Double longitude = 0.0;
 
     @Column(nullable = false)
     private int nombreDeVues;
@@ -96,9 +97,20 @@ public class Demande  implements Serializable {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
+    @JsonBackReference
     private User user;
 
 
     @Column(name = "reserved_to_user")
     private Long reservedToIdUser;
+
+    public enum DemandeType {
+        SELL,
+        SERVICE
+    }
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private DemandeType type;
+
 }

@@ -12,22 +12,25 @@ public class DemandeSpecification {
 
     public static Specification<Demande> withDynamicQuery(String titre,
                                                           String categorie,
-                                                          String etat,
                                                           Double lat,
                                                           Double lng,
                                                           Double distance,
-                                                          boolean gratuit,
                                                           Double prixMin,
                                                           Double prixMax,
-                                                          boolean estPayant,
-                                                          List<Demande.DemandeStatus> etats
+                                                          boolean gratuit,
+                                                          Boolean surDevis,
+                                                          List<Demande.DemandeStatus> etats,
+                                                          Demande.DemandeType type
                                                           ) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            if(!estPayant)
+
+            if(surDevis != null )
             {
-                predicates.add(cb.equal(root.get("estPayant"), estPayant));
+                predicates.add(cb.equal(root.get("surDevis"), surDevis));
+            }else{
+                if(gratuit)predicates.add(cb.equal(root.get("surDevis"), false));
             }
 
             // Gestion des intervalles de prix
@@ -41,7 +44,7 @@ public class DemandeSpecification {
                     predicates.add(cb.lessThanOrEqualTo(root.get("prix"), prixMax));
                 }
             }
-            if (lat != 0 && lng != 0 && distance != 0) {
+            if (lat != null && lng != null && distance != null) {
                 // Convertir la distance en degrés (approximation simple, valable principalement pour de courtes distances)
                 double distanceInDegrees = distance / 111.32; // Cette approximation fonctionne mieux à l'équateur
 
@@ -55,13 +58,16 @@ public class DemandeSpecification {
             }
             if (titre != null && !titre.isEmpty()) {
 
-                Predicate titrePredicate = cb.like(cb.lower(root.get("titre")), "%" + titre.toLowerCase() + "%");
-
                 Predicate descriptionPredicate = cb.like(cb.lower(root.get("description")), "%" + titre.toLowerCase() + "%");
 
                 Predicate categoryPredicate = cb.like(cb.lower(root.get("categorie")), "%" + titre.toLowerCase() + "%");
                 // Combiner les prédicats titre et description avec un OU logique
-                predicates.add(cb.or(titrePredicate, descriptionPredicate,categoryPredicate));
+                predicates.add(cb.or(descriptionPredicate,categoryPredicate));
+            }
+            if(type != null)
+            {
+                Predicate typePredicate = cb.equal(root.get("type"), type);
+                predicates.add(typePredicate);
             }
             if (categorie != null && !categorie.isEmpty()) {
                 predicates.add(cb.equal(cb.lower(root.get("categorie")), categorie.toLowerCase()));

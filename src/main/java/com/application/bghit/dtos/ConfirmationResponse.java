@@ -7,7 +7,12 @@ public class ConfirmationResponse {
         SUCCESS,
         EMAIL_ALREADY_CONFIRMED,
         TOKEN_EXPIRED,
-        EMAIL_NOT_FOUND, UNKNOWN, ERROR,EMAIL_EXIST,INCORRECT_PASSWORD
+        EMAIL_NOT_FOUND,
+        UNKNOWN,
+        ERROR,
+        EMAIL_EXIST,
+        INCORRECT_PASSWORD,
+        RESET_URL_USED
     }
     private confirmStatus message;
     // Constructeurs

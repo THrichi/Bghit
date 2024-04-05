@@ -1,5 +1,6 @@
 package com.application.bghit.config;
 
+import com.application.bghit.dtos.ConfirmationResponse;
 import com.application.bghit.dtos.UserDto;
 import com.application.bghit.exceptions.AppException;
 import com.auth0.jwt.JWT;
@@ -61,11 +62,25 @@ public class UserAuthProvider {
                 .withExpiresAt(validity)
                 .sign(Algorithm.HMAC256(secretKey));
     }
+    public boolean valideResetPasswordsToken(String token) throws AppException {
+        Authentication authentication = validateToken(token);
+        return authentication != null;
+    }
+    public String generateToken(String userEmail) {
+        Date now = new Date();
+        long time = 1000 * 60 * 15;
+        Date validity = new Date(now.getTime() +time);
+        JWTCreator.Builder tokenBuilder = JWT.create()
+                .withSubject(userEmail)
+                .withIssuedAt(now)
+                .withExpiresAt(validity);
 
+        tokenBuilder.withClaim("userEmail", userEmail);
+        return tokenBuilder.sign(Algorithm.HMAC256(secretKey));
+    }
     public String createEmailConfirmationToken(int time, String userEmail, Long userId) {
         Date now = new Date();
-        long validityPeriodMs = time;
-        Date validity = new Date(now.getTime() + validityPeriodMs);
+        Date validity = new Date(now.getTime() + (long) time);
         // Créer le builder de token JWT
         JWTCreator.Builder tokenBuilder = JWT.create()
                 .withSubject(userEmail) // Utiliser 'subject' pour l'email de l'utilisateur
@@ -212,7 +227,5 @@ public class UserAuthProvider {
 
         return user;
     }
-
-
 
 }

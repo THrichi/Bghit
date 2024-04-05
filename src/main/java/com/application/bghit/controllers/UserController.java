@@ -2,11 +2,11 @@ package com.application.bghit.controllers;
 
 import com.application.bghit.config.UserAuthProvider;
 import com.application.bghit.dtos.*;
-import com.application.bghit.entities.Rating;
-import com.application.bghit.entities.User;
-import com.application.bghit.entities.Verified;
+import com.application.bghit.entities.*;
 import com.application.bghit.exceptions.AppException;
 import com.application.bghit.repositories.RatingRepository;
+import com.application.bghit.repositories.SearchRepository;
+import com.application.bghit.services.DemandeService;
 import com.application.bghit.services.EmailService;
 import com.application.bghit.services.TwilioSmsSenderService;
 import com.application.bghit.services.UserService;
@@ -32,12 +32,13 @@ public class UserController {
     private final EmailService emailService;
     private final UserAuthProvider userAuthProvider;
     private final TwilioSmsSenderService smsSenderService;
+    private final DemandeService demandeService;
+    private final SearchRepository searchRepository;
 
     @GetMapping("/currentUser")
     public ResponseEntity<UserProfilDto> currentUser() throws AppException {
 
         String email = UserService.getCurrentUserEmail();
-
         User user = userService.findByEmail(email)
                 .orElseThrow(() -> new AppException("Unknown User", HttpStatus.NOT_FOUND));
         UserProfilDto userDto = userService.convertUserToDto(user);
@@ -65,7 +66,6 @@ public class UserController {
             }
             ratingRepository.save(rating);
             Double userRating = ratingRepository.findAverageRating(userId);
-            System.out.println("userRating : "+userRating);
             user.setRating(userRating);
             user.getRatings().add(rating);
             userService.saveUser(user);
@@ -168,14 +168,37 @@ public class UserController {
     }
 
     @PutMapping("/user/update")
-    public ResponseEntity<User> updateUser(@RequestBody UserUpdateDto userDetails) throws AppException {
+    public ResponseEntity<?> updateUser(@RequestBody UserUpdateDto userDetails) throws AppException {
+
+        String email = UserService.getCurrentUserEmail();
+
+        User user = userService.findByEmail(email)
+                .orElseThrow(() -> new AppException("Unknown User", HttpStatus.NOT_FOUND));
+        userService.updateUser(user,userDetails);
+        return ResponseEntity.ok(true);
+    }
+
+    @PatchMapping("/user/update-profile-image")
+    public ResponseEntity<?> updateProfileImage(@RequestParam("image") String image) throws AppException {
+
+        String email = UserService.getCurrentUserEmail();
+
+        User user = userService.findByEmail(email)
+                .orElseThrow(() -> new AppException("Unknown User", HttpStatus.NOT_FOUND));
+        user.setPicture(image);
+        userService.saveUser(user);
+        return ResponseEntity.ok(true);
+    }
+
+    @PutMapping("/user/complete-profil")
+    public ResponseEntity<User> completeProfil(@RequestBody UserUpdateDto userDetails) throws AppException {
 
         String email = UserService.getCurrentUserEmail();
 
         User user = userService.findByEmail(email)
                 .orElseThrow(() -> new AppException("Unknown User", HttpStatus.NOT_FOUND));
 
-        User updatedUser = userService.updateUser(user,userDetails);
+        User updatedUser = userService.completeUser(user,userDetails);
         return ResponseEntity.ok(updatedUser);
     }
 
@@ -192,7 +215,6 @@ public class UserController {
         if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new AppException("L'ancien mot de passe est incorrect", HttpStatus.BAD_REQUEST);
         }
-        System.out.println("userEmail4"+userEmail);
         String token = userAuthProvider.createEmailConfirmationToken(300_000,userEmail,userId);
         String confirmationUrl = "http://localhost:4200/confirm?token=" + token +"&update="+true;
         emailService.sendConfirmationUpdateEmail(
@@ -235,5 +257,65 @@ public class UserController {
         userService.saveUser(user);
         return ResponseEntity.ok(true);
     }
+    @PatchMapping("/user/addFavoris")
+    public ResponseEntity<?> addFavoris(@RequestParam("demandeId") Long demandeId) throws AppException {
+        try {
+            Optional<Demande> optionalDemande = demandeService.findDemandeById(demandeId);
+            if(optionalDemande.isEmpty())throw new AppException("Demande Not Found",HttpStatus.NOT_FOUND);
+            Demande demande = optionalDemande.get();
+            return ResponseEntity.ok(userService.addDemandeFavoris(demande));
+        }catch (Exception e)
+        {
+            throw new AppException("Duplicated",HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @PatchMapping("/user/removeFavoris")
+    public ResponseEntity<?> removeFavoris(@RequestParam("demandeId") Long demandeId) throws AppException {
+        try {
+            Optional<Demande> optionalDemande = demandeService.findDemandeById(demandeId);
+            if(optionalDemande.isEmpty())throw new AppException("Demande Not Found",HttpStatus.NOT_FOUND);
+            Demande demande = optionalDemande.get();
+            return ResponseEntity.ok(userService.removeDemandeFavoris(demande));
+        }catch (Exception e)
+        {
+            throw new AppException("Duplicated",HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @PatchMapping("/user/removeSearchFavoris")
+    public ResponseEntity<?> removeSearchFavoris(@RequestParam("searchId") Long searchId) throws AppException {
+        try {
+            Optional<Search> optionalDemande = searchRepository.findById(searchId);
+            if(optionalDemande.isEmpty())throw new AppException("Demande Not Found",HttpStatus.NOT_FOUND);
+            Search search = optionalDemande.get();
+            userService.removeSearchFavoris(search);
+            searchRepository.delete(search);
+            return ResponseEntity.ok(true);
+        }catch (Exception e)
+        {
+            throw new AppException("Duplicated",HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @PostMapping("/user/addSearchFavoris")
+    public ResponseEntity<?> addSearchFavoris(@RequestBody Search search) throws AppException {
+        try {
+            return ResponseEntity.ok(userService.addSearchFavoris(search));
+        }catch (Exception e){
+            throw new AppException("Duplicated",HttpStatus.BAD_REQUEST);
+        }
+    }
+    @PostMapping("/user/updateSettings")
+    public ResponseEntity<?> updateSettings(@RequestBody Settings settings) throws AppException {
+        try {
+            userService.updateSettings(settings);
+            return ResponseEntity.ok(true);
+        }catch (Exception e)
+        {
+            throw new AppException("Settings Not Found",HttpStatus.BAD_REQUEST);
+        }
+    }
+
 
 }

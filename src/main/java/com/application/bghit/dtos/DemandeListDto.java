@@ -8,7 +8,6 @@ import java.util.List;
 
 public record DemandeListDto(
         Long idDemande,
-        String titre,
         String description,
         Date dateCreation,
         boolean estPayant,
@@ -25,6 +24,7 @@ public record DemandeListDto(
         String theme,
         UserDto user, // Email de l'utilisateur comme identifiant simplifié
 
-        Long reservedToIdUser
+        Long reservedToIdUser,
+        Demande.DemandeType type
 ) {
 }
