@@ -27,7 +27,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final UserAuthProvider userAuthProvider;
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        System.out.println("enter");
         registration.interceptors(new ChannelInterceptor() {
             @Override
             public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -35,7 +34,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 if (StompCommand.CONNECT.equals(accessor.getCommand())) {
                     List<String> authorization = accessor.getNativeHeader("Authorization");
                     if (authorization != null && !authorization.isEmpty()) {
-                        // Extract token and perform authentication/validation
+                        String authToken = authorization.get(0).split(" ")[1]; // Extract token from "Bearer <token>"
+                        try {
+                            Authentication userAuth = userAuthProvider.validateToken(authToken); // Validate token and retrieve user authentication
+                            SecurityContextHolder.getContext().setAuthentication(userAuth); // Set user authentication to security context
+                        } catch (AppException e) {
+                            throw new RuntimeException("Token validation failed", e);
+                        }
                     }
                 }
                 return message;
@@ -44,12 +49,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     }
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws").setAllowedOrigins("http://localhost:4200","http://localhost:4200/").withSockJS();
+        registry.addEndpoint("/ws").setAllowedOrigins(
+                "http://localhost:4200",
+                "http://localhost:4200/"
+        ).withSockJS();
     }
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        registry.enableSimpleBroker("/room","/newRoom");
+        registry.enableSimpleBroker("/room","/newRoom","/user");
+        registry.setUserDestinationPrefix("/user");
         registry.setApplicationDestinationPrefixes("/app");
     }
 }

@@ -2,13 +2,12 @@ package com.application.bghit.controllers;
 
 import com.application.bghit.dtos.ChatUserDto;
 import com.application.bghit.dtos.RoomDto;
-import com.application.bghit.entities.ChatMessage;
-import com.application.bghit.entities.Demande;
-import com.application.bghit.entities.Room;
-import com.application.bghit.entities.User;
+import com.application.bghit.entities.*;
+import com.application.bghit.enums.NotificationType;
 import com.application.bghit.exceptions.AppException;
 import com.application.bghit.services.ChatService;
 import com.application.bghit.services.DemandeService;
+import com.application.bghit.services.NotificationService;
 import com.application.bghit.services.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -30,6 +29,7 @@ public class ChatController {
     private final SimpMessagingTemplate messagingTemplate;
     private final UserService userService;
     private final DemandeService demandeService;
+    private final NotificationService notificationService;
 
     @PostMapping("/room")
     public Room createRoom(@RequestParam Long userId1, @RequestParam Long userId2) throws AppException {
@@ -166,6 +166,21 @@ public class ChatController {
             if(isNewRoom.get()) {
                 messagingTemplate.convertAndSend(String.format("/newRoom/%s", senderId), room.getId());
                 messagingTemplate.convertAndSend(String.format("/newRoom/%s", recipientId), room.getId());
+                Optional<User> optionalRecipient = userService.findById(recipientId);
+                if(optionalRecipient.isEmpty()) throw  new AppException("User not found",HttpStatus.NOT_FOUND);
+                User recipient = optionalRecipient.get();
+                if(recipient.getSettings().isActivateNotifications())
+                {
+                    Optional<User> optionalSenderId = userService.findById(senderId);
+                    if(optionalSenderId.isEmpty()) throw  new AppException("User not found",HttpStatus.NOT_FOUND);
+                    User sender = optionalSenderId.get();
+                    Notification notification = new Notification();
+                    notification.setMessage(message.getContent());
+                    notification.setTitle("Message de la part de " + sender.getName() + " " + sender.getLastName());
+                    notification.setType(NotificationType.MESSAGE);
+                    notification.setPicture(sender.getPicture());
+                    notificationService.createNotification(notification,recipient);
+                }
             }
             messagingTemplate.convertAndSend(String.format("/room/%s", room.getId()), savedMessage);
 

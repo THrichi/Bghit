@@ -94,6 +94,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<UserDto> login ( @RequestBody CredentialsDto credentialsDto) throws AppException {
+        System.out.println("test");
         UserDto user = userService.login(credentialsDto);
         user.setToken(userAuthProvider.createToken(user,credentialsDto.rememberMe()));
         return ResponseEntity.ok(user);

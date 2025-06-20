@@ -1,4 +1,5 @@
 package com.application.bghit.dtos;
+import com.application.bghit.entities.Notification;
 import com.application.bghit.entities.Rating;
 import com.application.bghit.entities.Search;
 import com.application.bghit.entities.Settings;
@@ -41,6 +42,7 @@ public class UserProfilDto {
     private List<PhotoCollectionDto> photos;
     private List<DemandeListDto> demandeFavoris;
     private Settings settings;
+    private List<Notification> notifications;
 
     // Vous pouvez choisir d'ajouter d'autres champs ici selon les besoins
 }

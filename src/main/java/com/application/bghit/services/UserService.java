@@ -122,7 +122,8 @@ public class UserService {
                 user.getSearchFavoris(),
                 photosDto,
                 demandeDto,
-                user.getSettings()
+                user.getSettings(),
+                user.getNotifications()
         ); // Exemple de DTO avec username et email
     }
     public DemandeListDto convertToDto(Demande demande) {

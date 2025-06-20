@@ -1,6 +1,7 @@
 package com.application.bghit.entities;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -14,7 +15,10 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
@@ -118,6 +122,11 @@ public class User implements Serializable {
     private Settings settings;
 
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("dateCreated DESC")
+    private List<Notification> notifications;
+
+
     private String resetPasswordToken;
 
     public void addPhotoCollection(PhotoCollection image) {
@@ -126,6 +135,18 @@ public class User implements Serializable {
 
     public void removeImage(PhotoCollection image) {
         photos.remove(image);
+    }
+
+
+    @Override
+    public String toString() {
+        // Replace "notifications" with any other fields you want to display in toString()
+        return "User{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", lastName='" + lastName + '\'' +
+                ", email='" + email + '\'' +
+                "}";
     }
 }
 

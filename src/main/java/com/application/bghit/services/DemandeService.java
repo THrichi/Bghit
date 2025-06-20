@@ -2,6 +2,7 @@ package com.application.bghit.services;
 
 import com.application.bghit.dtos.*;
 import com.application.bghit.entities.*;
+import com.application.bghit.enums.NotificationType;
 import com.application.bghit.exceptions.AppException;
 import com.application.bghit.repositories.DemandeRepository;
 import com.application.bghit.repositories.RoomRepository;
@@ -29,10 +30,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DemandeService {
 
+    private static final String URL_ADVICE_COMPONENT = "/advice";
+    private static final String URL_PROFILE_COMPONENT = "/profile?idProfil=";
     private final DemandeRepository demandeRepository;
     private final RoomRepository roomRepository;
     private final ImageHandler imageHandler;
-
+    private final NotificationService  notificationService;
     private final UserService userService;
     private final Path rootLocation = Paths.get("src/main/resources/static/images/demandes");
 
@@ -138,9 +141,17 @@ public class DemandeService {
                     Path fileNameAndPath = Paths.get(UPLOAD_DIR, uniqueFileName);// Utilisation du nom de fichier unique pour le retour
 
                     try {
-
                         byte[] fileBytes = imageHandler.addWatermark(file, "Bghite.ma");
-                        if(imageHandler.analyseImage(fileBytes)) return new ConfirmationResponse(false, ConfirmationResponse.confirmStatus.ERROR);;
+                        if(imageHandler.analyseImage(fileBytes))
+                        {
+
+                            notificationService.newNotification(user,
+                                    "Téléchargement d'images inappropriées",
+                                    "Téléchargement d'images inappropriées",
+                                    NotificationType.WARNING,
+                                    URL_ADVICE_COMPONENT);
+                            return new ConfirmationResponse(false, ConfirmationResponse.confirmStatus.ERROR);
+                        };
                         Files.write(fileNameAndPath, fileBytes);
                         demande.addImage(new Image(uniqueFileName,demande));
                     } catch (IOException e) {
@@ -149,6 +160,12 @@ public class DemandeService {
                 }
             }
         }
+
+        notificationService.newNotification(user,"Votre demande est en cours de vérification",
+                "Nous avons bien reçu votre demande et elle est actuellement en cours de vérification par notre équipe. Cela peut prendre un peu de temps," +
+                        " mais nous vous assurons de faire le nécessaire pour traiter votre demande dans les plus brefs délais. Pour toute question ou besoin d’assistance supplémentaire, n’hésitez pas à consulter notre [guide d’utilisateur](URL_ADVICE_COMPONENT). Nous vous remercions de votre patience et de votre compréhension.",
+                NotificationType.PROGRESS,
+                URL_PROFILE_COMPONENT+user.getId()+"&tab=demandes");
         demandeRepository.save(demande);
         return new ConfirmationResponse(true, ConfirmationResponse.confirmStatus.SUCCESS);
     }
